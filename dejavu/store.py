@@ -15,6 +15,8 @@ class Rule:
     scope: dict
     drafted_at: str
     activated_at: Optional[str] = None
+    preview_stats: Optional[dict] = None   # cached from last `preview` run
+    measure_result: Optional[dict] = None  # cached from last `measure` run
 
 
 @dataclass

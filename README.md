@@ -140,7 +140,60 @@ python3 -m dejavu measure r001 [--sessions DIR]
 ```
 
 Prints counts, rates, and 95% confidence intervals (Wilson score). Prints a
-warning when the sample is small.
+warning when the sample is small. The result is cached in `rules.json` so
+`report.html` can display it without re-running.
+
+### conflicts
+
+Checks all rules for scope overlap and optional LLM contradiction detection.
+
+```bash
+python3 -m dejavu conflicts [--no-llm]
+```
+
+Two rules overlap when they could both fire on the same tool call (same or
+unspecified tool, no guaranteed disjoint patterns). With an `ANTHROPIC_API_KEY`
+set, overlapping pairs are sent to `claude-haiku-5-5` to judge whether their
+instructions contradict each other.
+
+Output:
+
+```
+[SCOPE OVERLAP]      r001 <-> r003
+  Scope overlap detected; check rule texts manually.
+
+[CONTRADICTION]      r002 <-> r004
+  Rule r002 says always read first; rule r004 says skip reads in test files.
+```
+
+### Generic input format
+
+Logs from other agent frameworks can be analyzed without converting to Claude
+Code's `.jsonl` format. Pass a directory of `.json` files:
+
+```bash
+python3 -m dejavu analyze --sessions my-logs/ --format generic
+```
+
+Each file should contain a session object (or a list of sessions):
+
+```json
+{
+  "session_id": "optional",
+  "start_time": "2025-01-01T00:00:00Z",
+  "events": [
+    {"type": "user_msg",    "content": "Do X"},
+    {"type": "tool_use",    "tool_name": "Edit", "tool_use_id": "t1",
+                             "tool_input": {"file_path": "src/app.py"}},
+    {"type": "tool_result", "tool_use_id": "t1",
+                             "content": "File has not been read yet.",
+                             "is_error": true}
+  ]
+}
+```
+
+A sample is at `samples/example-generic.json`. Format auto-detection: if the
+directory has `.json` files and no `.jsonl` files, generic format is assumed.
 
 ---
 
@@ -215,11 +268,14 @@ dejavu/        core library
   preview.py      scope matching across sessions
   emitter.py      generate hook scripts and settings snippets
   measure.py      before/after comparison
-  report.py       static HTML report
+  report.py       static HTML report (self-contained, embeds all stats)
   llm.py          optional LLM rule drafting
   redact.py       PII redaction before LLM/report
+  conflicts.py    scope overlap and contradiction detection
+  adapter.py      generic JSON input adapter for non-Claude-Code logs
   cli.py          argparse CLI
 samples/          synthetic test sessions (generated, not real logs)
+  example-generic.json   sample in generic input format
 tests/            automated tests asserting exact ground-truth numbers
 demo-repo/        a small app for live demonstrations
 demo.sh           end-to-end demo script

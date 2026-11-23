@@ -13,10 +13,20 @@ from .emitter import emit_rule
 from .measure import measure_rule
 from .llm import draft_rule
 from .report import generate_report
+from .conflicts import check_conflicts
+from .adapter import load_generic_sessions, is_generic_dir
 
 
 def _load_store(rules_file: str) -> RuleStore:
     return RuleStore(path=rules_file)
+
+
+def _load_sessions(path: str | None, fmt: str = "auto") -> list:
+    if path is None:
+        path = str(Path.home() / ".claude" / "projects")
+    if fmt == "generic" or (fmt == "auto" and is_generic_dir(path)):
+        return load_generic_sessions(path)
+    return load_sessions_from(path)
 
 
 def _get_rule(store: RuleStore, rule_id: str) -> Rule:
@@ -28,7 +38,7 @@ def _get_rule(store: RuleStore, rule_id: str) -> Rule:
 
 
 def cmd_analyze(args: argparse.Namespace) -> None:
-    sessions = load_sessions_from(args.sessions)
+    sessions = _load_sessions(args.sessions, getattr(args, "format", "auto"))
     n = len(sessions)
     if n == 0:
         print("No sessions found.")
@@ -71,6 +81,7 @@ def cmd_analyze(args: argparse.Namespace) -> None:
         )
 
         p = preview_rule(rule, sessions, sig_map)
+        rule.preview_stats = p
 
         scope_str = ", ".join(
             f"{k}={v}" for k, v in scope.items() if v is not None
@@ -160,9 +171,13 @@ def cmd_measure(args: argparse.Namespace) -> None:
     rule = _get_rule(store, args.rule_id)
 
     sessions_dir = args.sessions or store.sessions_dir
-    sessions = load_sessions_from(sessions_dir)
+    sessions = _load_sessions(sessions_dir)
 
     result = measure_rule(rule, sessions)
+
+    # Cache result into the rule so the report can include it
+    rule.measure_result = result
+    store.save()
 
     if "error" in result:
         print(f"Error: {result['error']}")
@@ -190,6 +205,27 @@ def cmd_measure(args: argparse.Namespace) -> None:
     print(result["note"])
 
 
+def cmd_conflicts(args: argparse.Namespace) -> None:
+    store = _load_store(args.rules_file)
+    rules = store.all()
+    if len(rules) < 2:
+        print("Need at least 2 rules to check for conflicts.")
+        return
+
+    conflicts = check_conflicts(rules, use_llm=not args.no_llm)
+    real = [c for c in conflicts if c.severity != "none"]
+    if not real:
+        print(f"No conflicts found among {len(rules)} rules.")
+        return
+
+    print(f"Found {len(real)} potential conflict(s) among {len(rules)} rules:\n")
+    for c in real:
+        label = "CONTRADICTION" if c.severity == "contradiction" else "SCOPE OVERLAP"
+        print(f"  [{label}] {c.rule_id_a} <-> {c.rule_id_b}")
+        print(f"    {c.reasoning}")
+        print()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="dejavu",
@@ -206,6 +242,8 @@ def main() -> None:
                      help="Number of top clusters to show (default 5)")
     p_a.add_argument("--no-llm", action="store_true",
                      help="Skip LLM; use template rule text")
+    p_a.add_argument("--format", choices=["auto", "claude", "generic"], default="auto",
+                     metavar="FMT", help="Input format: auto (default), claude, generic")
 
     # preview
     p_p = sub.add_parser("preview", help="Show scope firing stats for a rule")
@@ -226,6 +264,12 @@ def main() -> None:
     p_m.add_argument("--rules-file", default="rules.json", metavar="FILE")
     p_m.add_argument("--sessions", default=None, metavar="DIR")
 
+    # conflicts
+    p_c = sub.add_parser("conflicts", help="Check rules for scope overlap or contradictions")
+    p_c.add_argument("--rules-file", default="rules.json", metavar="FILE")
+    p_c.add_argument("--no-llm", action="store_true",
+                     help="Skip LLM contradiction check; report overlaps only")
+
     args = parser.parse_args()
 
     if args.command == "analyze":
@@ -236,6 +280,8 @@ def main() -> None:
         cmd_emit(args)
     elif args.command == "measure":
         cmd_measure(args)
+    elif args.command == "conflicts":
+        cmd_conflicts(args)
     else:
         parser.print_help()
         sys.exit(1)

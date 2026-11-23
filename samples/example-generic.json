@@ -1,0 +1,86 @@
+[
+  {
+    "session_id": "generic-session-001",
+    "start_time": "2025-01-10T09:00:00Z",
+    "cwd": "/project",
+    "events": [
+      {
+        "type": "user_msg",
+        "content": "Rename the active field to enabled in src/app.py",
+        "timestamp": "2025-01-10T09:00:01Z"
+      },
+      {
+        "type": "tool_use",
+        "tool_name": "Edit",
+        "tool_use_id": "t1",
+        "tool_input": {"file_path": "src/app.py", "old_string": "active", "new_string": "enabled"},
+        "timestamp": "2025-01-10T09:00:02Z"
+      },
+      {
+        "type": "tool_result",
+        "tool_use_id": "t1",
+        "tool_name": "Edit",
+        "content": "File has not been read yet. Read the file first before editing it.",
+        "is_error": true,
+        "timestamp": "2025-01-10T09:00:03Z"
+      },
+      {
+        "type": "tool_use",
+        "tool_name": "Read",
+        "tool_use_id": "t2",
+        "tool_input": {"file_path": "src/app.py"},
+        "timestamp": "2025-01-10T09:00:04Z"
+      },
+      {
+        "type": "tool_result",
+        "tool_use_id": "t2",
+        "tool_name": "Read",
+        "content": "1\tclass User:\n2\t    active: bool = True\n",
+        "is_error": false,
+        "timestamp": "2025-01-10T09:00:05Z"
+      },
+      {
+        "type": "tool_use",
+        "tool_name": "Edit",
+        "tool_use_id": "t3",
+        "tool_input": {"file_path": "src/app.py", "old_string": "active: bool", "new_string": "enabled: bool"},
+        "timestamp": "2025-01-10T09:00:06Z"
+      },
+      {
+        "type": "tool_result",
+        "tool_use_id": "t3",
+        "tool_name": "Edit",
+        "content": "Edit applied successfully.",
+        "is_error": false,
+        "timestamp": "2025-01-10T09:00:07Z"
+      }
+    ]
+  },
+  {
+    "session_id": "generic-session-002",
+    "start_time": "2025-01-11T10:00:00Z",
+    "cwd": "/project",
+    "events": [
+      {
+        "type": "user_msg",
+        "content": "Add a type annotation to the helper in utils.py",
+        "timestamp": "2025-01-11T10:00:01Z"
+      },
+      {
+        "type": "tool_use",
+        "tool_name": "Edit",
+        "tool_use_id": "t4",
+        "tool_input": {"file_path": "utils.py", "old_string": "def helper(x):", "new_string": "def helper(x: int) -> str:"},
+        "timestamp": "2025-01-11T10:00:02Z"
+      },
+      {
+        "type": "tool_result",
+        "tool_use_id": "t4",
+        "tool_name": "Edit",
+        "content": "File has not been read yet. Read the file first before editing it.",
+        "is_error": true,
+        "timestamp": "2025-01-11T10:00:03Z"
+      }
+    ]
+  }
+]

@@ -1,0 +1,19 @@
+# Add this to ~/.claude/settings.json (all projects) or
+# .claude/settings.json (this project only).
+#
+# Verified hook format: Claude Code docs, section "Hooks", PreToolUse event.
+# The hook receives tool input JSON on stdin and may output a JSON object.
+# "additionalContext" injects text as context for the assistant.
+
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "/Users/hiteshvenu/dejaVu/.dejavu/hook-r001.py" }
+        ]
+      }
+    ]
+  }
+}

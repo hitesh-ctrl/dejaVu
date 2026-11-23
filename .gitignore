@@ -1,6 +1,7 @@
 # Generated outputs - do not commit
 samples/*.jsonl
 rules.json
+real-rules.json
 demo-rules.json
 report.html
 demo-hooks/

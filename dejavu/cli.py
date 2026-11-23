@@ -15,6 +15,7 @@ from .llm import draft_rule
 from .report import generate_report
 from .conflicts import check_conflicts
 from .adapter import load_generic_sessions, is_generic_dir
+from .drill import drill
 
 
 def _load_store(rules_file: str) -> RuleStore:
@@ -94,6 +95,9 @@ def cmd_analyze(args: argparse.Namespace) -> None:
         false_hits = p["false_hits"]
         print(f"       fires in {fires} sessions, mistake in {mistakes} ({false_hits} false hits)")
         print(f"       rule: {rule_text}")
+        if getattr(args, "detail", False):
+            print()
+            print(drill(sig, sessions, session_ids))
         print()
 
         store.add(rule)
@@ -244,6 +248,8 @@ def main() -> None:
                      help="Skip LLM; use template rule text")
     p_a.add_argument("--format", choices=["auto", "claude", "generic"], default="auto",
                      metavar="FMT", help="Input format: auto (default), claude, generic")
+    p_a.add_argument("--detail", action="store_true",
+                     help="Show per-cluster breakdown of commands and error samples")
 
     # preview
     p_p = sub.add_parser("preview", help="Show scope firing stats for a rule")

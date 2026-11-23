@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "dejavu"
+version = "0.1.0"
+description = "Find repeated agent mistakes and draft scoped rules"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+llm = ["anthropic>=0.40"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+dejavu = "dejavu.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dejavu*"]

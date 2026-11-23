@@ -1,0 +1,15 @@
+# Generated outputs - do not commit
+samples/*.jsonl
+rules.json
+demo-rules.json
+report.html
+demo-hooks/
+.rulescope/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/

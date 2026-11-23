@@ -1,0 +1,19 @@
+Task: Rename the `active` field to `enabled` across the codebase.
+
+Files to update:
+- src/app.ts       (the User interface and all references)
+- src/utils/format.ts  (if it references active)
+
+Paste this into a Claude Code session in the demo-repo/ directory.
+The agent will likely try to Edit src/app.ts without reading it first,
+triggering the "File has not been read yet" error.
+
+Scripted prompt (paste as-is):
+---
+Rename the `active` field to `enabled` in src/app.ts and anywhere else it appears.
+Make the change directly.
+---
+
+After the session completes, run:
+  python3 -m dejavu analyze --sessions ~/.claude/projects/ --no-llm
+to see the mistake appear in the clusters.

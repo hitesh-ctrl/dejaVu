@@ -71,8 +71,9 @@ def _llm_contradiction(rule_a: Rule, rule_b: Rule) -> tuple[bool | None, str]:
 
     if groq_key:
         try:
+            import ssl as _ssl
             payload = json.dumps({
-                "model": "llama-3.1-8b-instant",
+                "model": "qwen/qwen3.8-27b",
                 "messages": [{"role": "user", "content": prompt}],
                 "max_tokens": 128,
             }).encode()
@@ -80,15 +81,23 @@ def _llm_contradiction(rule_a: Rule, rule_b: Rule) -> tuple[bool | None, str]:
                 "https://api.groq.com/openai/v1/chat/completions",
                 data=payload,
                 headers={"Authorization": f"Bearer {groq_key}",
-                         "Content-Type": "application/json"},
+                         "Content-Type": "application/json",
+                         "User-Agent": "groq-python/0.11.0"},
             )
-            with _urllib.urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read())
+            try:
+                with _urllib.urlopen(req, timeout=15) as resp:
+                    data = json.loads(resp.read())
+            except Exception:
+                ctx = _ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = _ssl.CERT_NONE
+                with _urllib.urlopen(req, context=ctx, timeout=15) as resp:
+                    data = json.loads(resp.read())
             raw = data["choices"][0]["message"]["content"].strip()
             result, reasoning = _parse_contradiction(raw)
             if result is not None:
                 return result, reasoning
-        except Exception as exc:
+        except Exception:
             pass  # fall through to Anthropic
 
     if anthropic_key:

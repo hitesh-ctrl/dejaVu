@@ -72,9 +72,31 @@ def _parse_response(raw: str) -> tuple[str, dict] | None:
     return None
 
 
+def _ssl_context():
+    import ssl
+    try:
+        import certifi  # type: ignore
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        pass
+    ctx = ssl.create_default_context()
+    # macOS Python from python.org ships without certs; fall back to unverified
+    # for this local tool talking to a known endpoint.
+    if not ctx.verify_mode:
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+    try:
+        ctx.load_default_certs()
+        return ctx
+    except Exception:
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+
+
 def _call_groq(api_key: str, prompt: str) -> str:
     payload = json.dumps({
-        "model": "llama-3.1-8b-instant",
+        "model": "qwen/qwen3.8-27b",
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": 256,
     }).encode()
@@ -84,10 +106,19 @@ def _call_groq(api_key: str, prompt: str) -> str:
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
+            "User-Agent": "groq-python/0.11.0",
         },
     )
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        data = json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read())
+    except Exception:
+        import ssl
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
+            data = json.loads(resp.read())
     return data["choices"][0]["message"]["content"].strip()
 
 
@@ -118,11 +149,18 @@ def draft_rule(
     if groq_key:
         try:
             raw = _call_groq(groq_key, prompt)
+            if os.environ.get("DEJAVU_DEBUG"):
+                print(f"  [groq raw] {raw[:200]}", flush=True)
             result = _parse_response(raw)
             if result:
                 return result
-        except Exception:
-            pass
+            if os.environ.get("DEJAVU_DEBUG"):
+                print("  [groq] parse failed", flush=True)
+        except Exception as _e:
+            if os.environ.get("DEJAVU_DEBUG"):
+                import urllib.error as _ue
+                body = getattr(_e, "read", lambda: b"")()
+                print(f"  [groq error] {_e} | {body[:300]}", flush=True)
 
     if anthropic_key:
         try:

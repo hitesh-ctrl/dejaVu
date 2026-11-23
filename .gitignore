@@ -1,5 +1,8 @@
 # Generated outputs - do not commit
 email-draft.md
+*.mp4
+*.mov
+*.aiff
 samples/*.jsonl
 rules.json
 real-rules.json

@@ -1,4 +1,5 @@
 # Generated outputs - do not commit
+email-draft.md
 samples/*.jsonl
 rules.json
 real-rules.json

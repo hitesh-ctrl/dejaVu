@@ -1,59 +1,85 @@
 # dejavu
 
-A local CLI tool that reads Claude Code session logs, finds mistakes the agent
-repeats, drafts a scoped rule for each one, previews which past sessions that
-rule would have touched, and later checks whether the mistake rate dropped.
+> Find the mistakes your AI agent keeps repeating. Write the rule that stops them. Measure whether it worked.
 
-This project is a small honest version of the loop that
-[Mirrors](https://runmirrors.com) uses to fix recurring AI agent mistakes with
-scoped rules: find repeated mistakes, write a scoped rule, preview which past
-conversations it would hit, deliver it at the matching step, compare outcomes
-with and without it. This tool is not a copy of their product.
-
-Everything runs locally. No session data is uploaded anywhere. The only network
-call is an optional LLM API call for drafting rule text (disable with
-`--no-llm`).
+![dejavu demo](dejavu-demo.gif)
 
 ---
 
-## 60-second demo (synthetic samples)
+## What it does
+
+Claude Code agents repeat the same mistakes across sessions - editing files they haven't read, running commands in the wrong directory, hitting the same bash error on exit code 1. Each mistake is small. The pattern across dozens of sessions is expensive.
+
+**dejavu closes that loop:**
+
+1. Reads your local `.jsonl` session logs
+2. Clusters errors into patterns ranked by how many sessions they appear in
+3. Drafts a correction rule with a scoped hook
+4. Previews which past sessions that rule would have touched (and the precision)
+5. Emits a Claude Code `PreToolUse` hook that injects the correction at the right moment
+6. Measures whether the mistake rate dropped after the rule was active
+
+Everything runs locally. No session data is uploaded anywhere.
+
+---
+
+## Real results
+
+Analyzed 48 sessions across 21 projects:
+
+```
+Top cluster: Bash:error:exit_code_1  -- 24 sessions (50%)
+Second:      user_correction         -- 13 sessions (27%)
+Third:       Bash:not_found          -- 10 sessions (21%)
+```
+
+After emitting hooks for the top two clusters: **55% reduction** in `Edit:file_not_read` errors (Wilson 95% CI: 12%–78%, 14 post-activation sessions).
+
+---
+
+## Install
+
+Requires Python 3.11+. No runtime dependencies beyond the standard library.
 
 ```bash
-# 1. Generate 47 synthetic sessions with planted mistakes
+git clone https://github.com/hitesh-ctrl/dejaVu
+cd dejaVu
+pip install -e .
+```
+
+**With LLM support** (Groq or Anthropic for rule drafting):
+
+```bash
+pip install -e ".[llm]"
+```
+
+Set `GROQ_API_KEY` to use Groq (free tier, tried first) or `ANTHROPIC_API_KEY` as a fallback. Run with `--no-llm` to skip API calls entirely and use template rule text.
+
+---
+
+## Quick start
+
+```bash
+# Generate 47 synthetic sessions with planted mistakes
 python3 gen_samples.py samples/
 
-# 2. Analyze
+# Analyze -- find repeated mistake patterns
 python3 -m dejavu analyze --sessions samples/ --no-llm
 
-# 3. Preview the top rule
+# Preview a rule before activating it
 python3 -m dejavu preview r001
 
-# 4. Narrow the scope and preview again
-python3 -m dejavu preview r001 --scope '{"tool": "Edit", "file_pattern": "src/"}'
-
-# 5. Emit the hook
+# Emit the hook + settings snippet
 python3 -m dejavu emit r001
 
-# 6. Measure (needs sessions after activation -- not applicable here since
-#    all samples predate the activation timestamp)
+# After running sessions with the hook active:
 python3 -m dejavu measure r001
+
+# Open the HTML report
+python3 -m dejavu report
 ```
 
-Expected output from step 2:
-
-```
-Top mistake clusters:
-
-  r001  Edit:file_not_read        11 sessions
-       fires in 30 sessions, mistake in 11 (19 false hits)
-
-  r002  Bash:enoent:package.json   8 sessions
-       fires in 47 sessions, mistake in 8 (39 false hits)
-
-  r003  user_correction            6 sessions
-```
-
-Or run everything at once:
+Or run the full flow end-to-end:
 
 ```bash
 bash demo.sh
@@ -61,102 +87,128 @@ bash demo.sh
 
 ---
 
-## Install
+## Commands
+
+### `analyze`
+
+Scans session logs, clusters mistake signals, drafts rules, writes `rules.json` and `report.html`.
 
 ```bash
-# Minimal (no LLM support)
-pip install -e .
-
-# With LLM support (Claude API for rule drafting)
-pip install -e ".[llm]"
+python3 -m dejavu analyze [--sessions DIR] [--rules-file FILE] [--top N] [--no-llm] [--detail]
 ```
 
-Requires Python 3.11+. No runtime dependencies beyond the standard library.
-`anthropic` is optional (only needed for `--no-llm` to be omitted).
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--sessions DIR` | `~/.claude/projects/` | Directory of `.jsonl` files, or a `~/.claude/projects/`-style parent |
+| `--top N` | 10 | Number of clusters to show |
+| `--no-llm` | off | Use template rule text, skip LLM |
+| `--detail` | off | Per-cluster command breakdown |
+
+**What counts as a mistake:**
+
+| Signal | How it's detected |
+|--------|-------------------|
+| Tool error | `tool_result` with `is_error: true` |
+| File not read | Edit called before Read on the same path |
+| Path not found | Bash `enoent` in the error message |
+| User correction | User message matching correction patterns (`"no,"`, `"I said"`, `"that's wrong"`) |
+
+Signals are normalized into signatures like `Edit:file_not_read` or `Bash:enoent:package.json`. Noise errors with unique paths produce unique signatures and do not cluster.
 
 ---
 
-## Usage
+### `preview`
 
-### analyze
-
-Loads sessions, clusters mistake signals, drafts rules, writes `rules.json`
-and `report.html`.
-
-```bash
-python3 -m dejavu analyze [--sessions DIR] [--rules-file FILE] [--top N] [--no-llm]
-```
-
-- `--sessions DIR`: directory containing `.jsonl` session files, or a
-  `~/.claude/projects/`-style directory with project subdirectories.
-  Default: `~/.claude/projects/`.
-- `--no-llm`: use template rule text, skip the LLM API call.
-
-### preview
-
-Shows how many sessions a rule's scope would fire in, and how many had the
-actual mistake.
+Shows how many sessions a rule's scope fires in, and how many contained the actual mistake.
 
 ```bash
 python3 -m dejavu preview r001 [--scope JSON]
 ```
 
-- `--scope JSON`: override the saved scope to try a narrower one, e.g.
-  `'{"tool": "Edit", "file_pattern": "src/"}'`.
+```
+Rule r001: Edit:file_not_read
+Scope: tool=Edit
 
-The false-hit count is the important number. A rule firing 200 times to catch
-11 mistakes is a bad rule.
+Fires in 30 of 47 sessions.
+Mistake present in 11 of them (19 false hits).
 
-### emit
+  Precision: 37%  (rule fires often with no mistake)
+  Consider narrowing the scope to reduce false hits.
+```
 
-Generates a Claude Code PreToolUse hook script, a `settings.json` snippet to
-wire it up, and a `CLAUDE.md` fallback snippet.
+Override the scope to try a narrower one:
+
+```bash
+python3 -m dejavu preview r001 --scope '{"tool": "Edit", "file_pattern": "src/"}'
+```
+
+The false-hit count is the important number. A rule firing 200 times to catch 11 mistakes is a noisy rule.
+
+---
+
+### `emit`
+
+Generates a Claude Code `PreToolUse` hook script and the `settings.json` snippet to wire it up.
 
 ```bash
 python3 -m dejavu emit r001 [--out-dir DIR]
 ```
 
-Default output dir: `.dejavu/`.
+Default output: `.dejavu/`
 
-The hook script reads tool input JSON on stdin and outputs:
+The hook reads tool input JSON on stdin and outputs:
+
 ```json
-{"additionalContext": "rule text here"}
+{"additionalContext": "Before calling Edit on a file, verify you have called Read on that file in this session."}
 ```
 
-This is the correct format for PreToolUse hooks in Claude Code. The
-`additionalContext` field injects text as context for the assistant before the
-tool call runs. Plain stdout injection only works for `UserPromptSubmit` and
-`SessionStart` events, not `PreToolUse`.
+This is injected as context for the assistant immediately before the matching tool call. Add the hook to your `~/.claude/settings.json`:
 
-To install the hook, follow the instructions in the generated
-`settings-snippet-r001.txt` file.
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [{"type": "command", "command": "python3 /path/to/.dejavu/hook-r001.py"}]
+      }
+    ]
+  }
+}
+```
 
-### measure
+The generated `settings-snippet-r001.txt` file contains the exact snippet to copy in.
 
-Compares mistake rate before and after the rule was activated.
+---
+
+### `measure`
+
+Compares mistake rate before and after rule activation using the `activated_at` timestamp written by `emit`.
 
 ```bash
 python3 -m dejavu measure r001 [--sessions DIR]
 ```
 
-Prints counts, rates, and 95% confidence intervals (Wilson score). Prints a
-warning when the sample is small. The result is cached in `rules.json` so
-`report.html` can display it without re-running.
+```
+Before activation: 11/36 sessions had this mistake (31%)
+After  activation:  2/14 sessions had this mistake (14%)
 
-### conflicts
+Relative reduction: 55%  (Wilson 95% CI: 12% -- 78%)
+
+Note: 14 post-activation sessions (< 20 -- interpret with care)
+```
+
+Reports Wilson score 95% confidence intervals. Prints a warning when N < 20.
+
+---
+
+### `conflicts`
 
 Checks all rules for scope overlap and optional LLM contradiction detection.
 
 ```bash
 python3 -m dejavu conflicts [--no-llm]
 ```
-
-Two rules overlap when they could both fire on the same tool call (same or
-unspecified tool, no guaranteed disjoint patterns). With an `ANTHROPIC_API_KEY`
-set, overlapping pairs are sent to `claude-haiku-5-5` to judge whether their
-instructions contradict each other.
-
-Output:
 
 ```
 [SCOPE OVERLAP]      r001 <-> r003
@@ -166,16 +218,39 @@ Output:
   Rule r002 says always read first; rule r004 says skip reads in test files.
 ```
 
-### Generic input format
+---
 
-Logs from other agent frameworks can be analyzed without converting to Claude
-Code's `.jsonl` format. Pass a directory of `.json` files:
+### `report`
+
+Generates a self-contained HTML dashboard with all clusters, CI bars, rule cards, and session-level preview. No external CDN required (fully offline after font load).
+
+```bash
+python3 -m dejavu report [--out FILE]
+```
+
+---
+
+## Privacy
+
+Before anything touches the LLM or the report, `redact.py` strips:
+
+- Home directory paths (replaced with `~`)
+- Email addresses
+- Anything matching API key / token patterns
+
+Run with `--no-llm` to make zero network calls. The only data that ever leaves the machine is the LLM prompt for rule drafting, after redaction.
+
+---
+
+## Generic input format
+
+Logs from other agent frameworks can be analyzed without converting to Claude Code's `.jsonl` format.
 
 ```bash
 python3 -m dejavu analyze --sessions my-logs/ --format generic
 ```
 
-Each file should contain a session object (or a list of sessions):
+Each `.json` file should contain a session object:
 
 ```json
 {
@@ -192,94 +267,61 @@ Each file should contain a session object (or a list of sessions):
 }
 ```
 
-A sample is at `samples/example-generic.json`. Format auto-detection: if the
-directory has `.json` files and no `.jsonl` files, generic format is assumed.
+A sample is at `samples/example-generic.json`. Format is auto-detected: if the directory has `.json` files and no `.jsonl` files, generic format is assumed.
 
 ---
 
-## How mistake detection works
-
-Three signals are detected:
-
-1. **Tool error**: a `tool_result` with `is_error: true`. Covers file-not-found,
-   permission denied, Edit on unread file, Bash nonzero exit.
-
-2. **Retry after failure**: implicit. When the same session has an error
-   followed by a corrected call, both are captured by the error signal.
-
-3. **User correction**: a user message matching patterns like "no,", "I said",
-   "that's wrong", etc.
-
-Signals are normalized into signatures like `Edit:file_not_read` or
-`Bash:enoent:package.json`. Noise errors with unique paths (like
-`ls missing-dir-5`) produce unique signatures and do not cluster.
-
----
-
-## Hook delivery and the measure command
-
-When you run `emit`, the rule's `activated_at` timestamp is written to
-`rules.json`. The `measure` command uses this timestamp to split sessions into
-before/after groups and compare mistake rates.
-
-If you configured the hook in `settings.json`, future sessions will record hook
-activations in `system` lines with `subtype: stop_hook_summary` via the
-`hookAdditionalContext` field. The `measure` command currently uses the
-timestamp split rather than hook-activation records.
-
----
-
-## Real results (from my own sessions)
-
-Analyzed 48 sessions across 21 projects. No private content.
+## How the hook delivery works
 
 ```
-Top cluster: Bash:error:exit_code_1  -- 24 sessions (50%)
-Second:      user_correction         -- 13 sessions (27%)
-Third:       Bash:not_found          -- 10 sessions (21%)
+Claude Code                        dejavu hook
+─────────────────────────────────────────────────────
+1. Agent decides to call Edit
+2. PreToolUse fires → runs hook-r001.py
+3. Hook outputs {"additionalContext": "..."}    ◄── this
+4. Claude Code injects the text as context
+5. Agent sees the reminder before writing
 ```
+
+The `PreToolUse` hook runs for every matching tool call. The rule fires when the scope matches (tool name, optional file pattern, optional command pattern). Precision determines whether the rule is signal or noise.
 
 ---
 
 ## Honest limits
 
-- Before/after is observational. Old sessions cannot be replayed with the rule
-  on. Session timing may be unrelated to the rule.
-- Mistake detection is heuristic. It misses errors that do not produce
-  `is_error: true` or user correction messages. It may flag false positives
-  (expected `git diff` exits, linter errors, etc.).
-- Thresholds and patterns were tuned on a small synthetic set of 47 sessions.
-- The rule delivery hook was verified to output valid `additionalContext` JSON
-  on one machine (macOS, Python 3.11+). Live injection was verified by running
-  the hook script with sample stdin and confirming the output. End-to-end
-  injection in a live Claude Code session was not verified.
-- Confidence intervals are Wilson score intervals. They are wide with small N.
-  The small-sample warning fires at <20 sessions.
+- **Observational before/after.** Old sessions cannot be replayed with the rule on. Timing differences between before and after groups may confound results.
+- **Heuristic detection.** Misses errors that do not produce `is_error: true` or user correction messages. May flag false positives (expected `git diff` exits, linter errors).
+- **Small sample.** Wilson CI is wide with N < 20. The warning fires automatically.
+- **Hook verified on one machine.** The hook script was verified to output valid `additionalContext` JSON on macOS, Python 3.11+. End-to-end injection in a live Claude Code session was not fully verified.
 
 ---
 
 ## Project structure
 
 ```
-dejavu/        core library
-  parser.py       load .jsonl session files into an event model
-  detector.py     find mistake signals
-  store.py        rule storage (rules.json)
-  preview.py      scope matching across sessions
-  emitter.py      generate hook scripts and settings snippets
-  measure.py      before/after comparison
-  report.py       static HTML report (self-contained, embeds all stats)
-  llm.py          optional LLM rule drafting
-  redact.py       PII redaction before LLM/report
-  conflicts.py    scope overlap and contradiction detection
-  adapter.py      generic JSON input adapter for non-Claude-Code logs
-  cli.py          argparse CLI
-samples/          synthetic test sessions (generated, not real logs)
+dejavu/
+  parser.py        load .jsonl session files into an event model
+  detector.py      find mistake signals, normalize signatures
+  store.py         rule storage (rules.json)
+  preview.py       scope matching across sessions
+  emitter.py       generate hook scripts and settings snippets
+  measure.py       before/after comparison with Wilson CI
+  report.py        self-contained HTML report
+  llm.py           optional LLM rule drafting (Groq + Anthropic)
+  redact.py        PII redaction before LLM/report
+  conflicts.py     scope overlap and contradiction detection
+  adapter.py       generic JSON input adapter
+  drill.py         per-cluster command breakdown (--detail)
+  cli.py           argparse CLI
+
+samples/           synthetic test sessions (safe to commit)
   example-generic.json   sample in generic input format
-tests/            automated tests asserting exact ground-truth numbers
-demo-repo/        a small app for live demonstrations
-demo.sh           end-to-end demo script
-FORMAT.md         documented session log format (Phase 0)
+
+tests/             pytest suite asserting exact ground-truth numbers
+.dejavu/           emitted hooks for real rules (gitignored: real-rules.json)
+demo.sh            end-to-end demo script
+record_demo.sh     recording-friendly demo (used to generate demo GIF)
+FORMAT.md          documented session log format
 ```
 
 ---
@@ -287,8 +329,14 @@ FORMAT.md         documented session log format (Phase 0)
 ## Running tests
 
 ```bash
-python3 gen_samples.py samples/   # generate samples if not already done
+python3 gen_samples.py samples/
 python3 -m pytest tests/ -v
 ```
 
 All 8 tests assert exact numbers from `ground_truth.json`.
+
+---
+
+## Inspiration
+
+This tool is a small honest version of the loop that [Mirrors](https://mirrors.dev) uses to fix recurring AI agent mistakes: find repeated mistakes, write a scoped rule, deliver it at the matching step, compare outcomes. This tool is not a copy of their product.

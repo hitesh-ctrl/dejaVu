@@ -3,7 +3,7 @@
 from PIL import Image, ImageDraw, ImageFont
 import os, sys
 
-W, H = 2560, 1664
+W, H = 2560, 1614   # 1664 − 50px menu-bar crop applied in annotate_video.sh
 
 BOLD_FONT = "/System/Library/Fonts/Helvetica.ttc"
 SFNS_FONT = "/System/Library/Fonts/SFNS.ttf"
@@ -23,10 +23,10 @@ VOICEOVER = [
     # seg0  4s  -- terminal opens, dejavu header
     "DejaVu finds the mistakes your AI agent keeps repeating.",
 
-    # seg1  4s  -- gen_samples runs, shows "Generated 47 synthetic sessions"
+    # seg1  5s  -- gen_samples runs, shows "Generated 47 synthetic sessions"
     "I feed it forty-seven synthetic Claude sessions to analyze.",
 
-    # seg2  6s  -- analyze command runs, output scrolls by
+    # seg2  5s  -- analyze command runs, output scrolls by
     "The analyze command scans all sessions "
     "and ranks every mistake by frequency.",
 
@@ -34,18 +34,18 @@ VOICEOVER = [
     "Top rule: Edit without Read -- "
     "found in eleven out of forty-seven sessions.",
 
-    # seg4  5s  -- "open /tmp/report.html" typed, Safari opens full screen
+    # seg4  3s  -- "open /tmp/report.html" typed, Safari opening
     "One command opens the full HTML report in the browser.",
 
     # seg5  5s  -- top of report visible full screen: header, rule list
     "The report shows every pattern DejaVu found, "
     "ranked by how often it occurred.",
 
-    # seg6  12s  -- scrolling through full report (4 scroll steps x 3s)
+    # seg6  13s  -- scrolling through full report (4 scroll steps x 3s + 1s transition)
     "Scrolling down shows the detail for each rule -- "
     "trigger, description, and session count.",
 
-    # seg7  5s  -- exit full screen, terminal back, preview r001
+    # seg7  5s  -- terminal back, preview r001 output on screen
     "Back in the terminal: preview shows "
     "exactly what rule r001 checks for.",
 
@@ -57,11 +57,10 @@ VOICEOVER = [
     "The hook reads the target file first -- "
     "injecting the fix before the mistake can happen.",
 
-    # seg10 4s  -- final success message: "Rule active. Run measure..."
-    "Run measure after your next sessions "
-    "to see if the error rate dropped.",
+    # seg10 6s  -- measure runs, shows before/after mistake rate
+    "Run measure to track whether the error rate actually dropped.",
 
-    # seg11 3s  -- countdown / done
+    # seg11 3s  -- final tagline
     "Find it. Fix it. Measure it.",
 ]
 

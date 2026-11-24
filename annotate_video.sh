@@ -6,7 +6,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INPUT="$SCRIPT_DIR/dejavu-screenrecord-raw.mp4"
-OUTPUT="$SCRIPT_DIR/dejavu-demo-final.mp4"
+OUTPUT="$SCRIPT_DIR/dejavu-demo-final-50s.mp4"
 TMP="$SCRIPT_DIR/.annotate-tmp"
 
 if [[ ! -f "$INPUT" ]]; then

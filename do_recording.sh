@@ -2,7 +2,7 @@
 # Orchestrates: set dark wallpaper → open Terminal → launch demo → record → annotate → restore wallpaper
 
 RAW="/Users/hiteshvenu/dejaVu/dejavu-screenrecord-raw.mp4"
-FINAL="/Users/hiteshvenu/dejaVu/dejavu-demo-final.mp4"
+FINAL="/Users/hiteshvenu/dejaVu/dejavu-demo-final-50s.mp4"
 BLACK_WP="/System/Library/Desktop Pictures/Solid Colors/Black.png"
 
 # Save current wallpaper so we can restore it

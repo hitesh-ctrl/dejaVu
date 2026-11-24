@@ -81,8 +81,14 @@ def detect_mistakes(session: Session) -> list[MistakeSignal]:
     return signals
 
 
-def build_sig_map(sessions: list[Session]) -> dict[str, set[str]]:
-    """Return signature -> set of session_ids (deduplicated per session)."""
+MIN_CLUSTER_SESSIONS = 2
+
+
+def build_sig_map(
+    sessions: list[Session],
+    min_sessions: int = MIN_CLUSTER_SESSIONS,
+) -> dict[str, set[str]]:
+    """Return signature -> set of session_ids, only for clusters in >= min_sessions."""
     result: dict[str, set[str]] = {}
     for s in sessions:
         seen_sigs: set[str] = set()
@@ -90,4 +96,4 @@ def build_sig_map(sessions: list[Session]) -> dict[str, set[str]]:
             if signal.signature not in seen_sigs:
                 result.setdefault(signal.signature, set()).add(s.session_id)
                 seen_sigs.add(signal.signature)
-    return result
+    return {sig: ids for sig, ids in result.items() if len(ids) >= min_sessions}

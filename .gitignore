@@ -1,6 +1,7 @@
 # Generated outputs - do not commit
 email-draft.md
 *.mp4
+!dejavu-demo-final-50s.mp4
 *.mov
 *.aiff
 samples/*.jsonl

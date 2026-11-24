@@ -17,11 +17,12 @@ fi
 mkdir -p "$TMP"
 trap 'rm -rf "$TMP"' EXIT
 
-DURATION=33
+DURATION=61
 
 # Segment durations (must sum to $DURATION):
-#   0 intro  1 generate  2 analyze  3 preview  4 emit  5 hook  6 measure
-declare -a DURS=(3 5 7 5 5 6 2)
+#   0 intro  1 gen  2 analyze  3 results  4 open-browser(fullscreen)
+#   5 report-top  6 scroll  7 terminal-back+preview  8 emit  9 hook  10 measure  11 tagline
+declare -a DURS=(4 4 6 5 4 5 12 5 5 4 4 3)
 
 # ── 1. Generate subtitle overlay PNGs ────────────────────────────────────────
 echo "1/3  Generating subtitle overlays..."
@@ -29,7 +30,7 @@ python3 "$SCRIPT_DIR/generate_panels.py" "$TMP"
 
 # ── 2. Build subtitle overlay segments (yuva420p for alpha) ──────────────────
 echo "2/3  Building overlay segments..."
-for i in 0 1 2 3 4 5 6; do
+for i in 0 1 2 3 4 5 6 7 8 9 10 11; do
   ffmpeg -y -loglevel error \
     -loop 1 -framerate 2 -i "$TMP/dv_panel_${i}.png" \
     -t "${DURS[$i]}" \
@@ -38,7 +39,7 @@ for i in 0 1 2 3 4 5 6; do
 done
 
 {
-  for i in 0 1 2 3 4 5 6; do
+  for i in 0 1 2 3 4 5 6 7 8 9 10 11; do
     echo "file '${TMP}/seg_${i}.mkv'"
   done
 } > "$TMP/concat.txt"
@@ -59,7 +60,7 @@ ffmpeg -y \
     [main][1:v]overlay=x=0:y=0[out]
   " \
   -map "[out]" \
-  -c:v libx264 -crf 12 -preset slow -pix_fmt yuv420p -movflags faststart \
+  -c:v libx264 -crf 8 -preset slow -pix_fmt yuv420p -movflags faststart \
   "$OUTPUT"
 
 echo "Done."

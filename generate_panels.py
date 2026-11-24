@@ -8,8 +8,8 @@ W, H = 2560, 1664
 BOLD_FONT = "/System/Library/Fonts/Helvetica.ttc"
 SFNS_FONT = "/System/Library/Fonts/SFNS.ttf"
 
-WHITE  = (255, 255, 255, 255)
-BG     = (0,   0,   0,   170)   # subtitle background strip
+WHITE  = (255, 255, 0,   255)   # yellow
+BG     = (0,   0,   0,   210)   # subtitle background strip
 
 FONT_SIZE = 46
 LINE_H    = 60
@@ -20,21 +20,54 @@ STRIP_TOP = H - 180  # subtitle strip starts here
 # Voiceover script -- one entry per video segment.
 # Keep each line short enough to speak within the segment duration.
 VOICEOVER = [
-    "I run DejaVu on forty-seven of my Claude sessions.",                           # seg0  3s
-    "It ranks my mistakes by frequency. "                                           # seg1  5s
-    "Top one: Edit without Read -- eleven sessions.",
-    "I preview rule zero-zero-one and emit it. "                                    # seg2  7s
-    "One command -- a hook that fires before every Edit.",
-    "The hook injects the correction into Claude's context "                        # seg3  5s
-    "before the mistake happens.",
-    "After my next sessions, I run measure to see if errors dropped.",              # seg4  5s
-    "That's the full loop: find the pattern, emit the correction, "                 # seg5  6s
-    "measure whether it worked.",
-    "Find it. Fix it. Measure it.",                                                 # seg6  2s
+    # seg0  4s  -- terminal opens, dejavu header
+    "DejaVu finds the mistakes your AI agent keeps repeating.",
+
+    # seg1  4s  -- gen_samples runs, shows "Generated 47 synthetic sessions"
+    "I feed it forty-seven synthetic Claude sessions to analyze.",
+
+    # seg2  6s  -- analyze command runs, output scrolls by
+    "The analyze command scans all sessions "
+    "and ranks every mistake by frequency.",
+
+    # seg3  5s  -- analysis results on screen: r001, 11 sessions
+    "Top rule: Edit without Read -- "
+    "found in eleven out of forty-seven sessions.",
+
+    # seg4  5s  -- "open /tmp/report.html" typed, Safari opens full screen
+    "One command opens the full HTML report in the browser.",
+
+    # seg5  5s  -- top of report visible full screen: header, rule list
+    "The report shows every pattern DejaVu found, "
+    "ranked by how often it occurred.",
+
+    # seg6  12s  -- scrolling through full report (4 scroll steps x 3s)
+    "Scrolling down shows the detail for each rule -- "
+    "trigger, description, and session count.",
+
+    # seg7  5s  -- exit full screen, terminal back, preview r001
+    "Back in the terminal: preview shows "
+    "exactly what rule r001 checks for.",
+
+    # seg8  5s  -- emit creates hook, output confirms path
+    "Emit writes a hook file that fires "
+    "before every Edit call Claude makes.",
+
+    # seg9  4s  -- cat shows first 20 lines of hook code
+    "The hook reads the target file first -- "
+    "injecting the fix before the mistake can happen.",
+
+    # seg10 4s  -- final success message: "Rule active. Run measure..."
+    "Run measure after your next sessions "
+    "to see if the error rate dropped.",
+
+    # seg11 3s  -- countdown / done
+    "Find it. Fix it. Measure it.",
 ]
 
 def load_font():
-    for path, idx in [(BOLD_FONT, 1), (SFNS_FONT, 0)]:
+    # index 2 = Helvetica Oblique (italic), index 3 = Bold Oblique
+    for path, idx in [(BOLD_FONT, 3), (BOLD_FONT, 2), (SFNS_FONT, 0)]:
         try:
             return ImageFont.truetype(path, FONT_SIZE, index=idx)
         except Exception:

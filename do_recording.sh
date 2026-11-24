@@ -18,11 +18,11 @@ sleep 1.5
 osascript -e 'tell application "Terminal" to do script "cd ~/dejaVu && bash record_demo.sh" in front window'
 sleep 1   # let demo appear on screen before recording starts
 
-echo "2/3  Recording for 65s (auto-stops)..."
+echo "2/3  Recording for 100s (auto-stops)..."
 ffmpeg -f avfoundation \
   -framerate 30 \
   -i "2" \
-  -t 65 \
+  -t 100 \
   -c:v libx264 \
   -crf 15 \
   -preset ultrafast \

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Recording-friendly demo script - slowed for readability, countdown at end
+# Recording-friendly demo script - slowed for readability, with report scrolling
 set -e
 cd "$(dirname "$0")"
 
@@ -17,12 +17,12 @@ clear
 echo ""
 echo -e "  \033[1;37mdejavu\033[0m  --  find the mistakes your AI agent keeps repeating"
 echo ""
-_pause 3
+_pause 4
 
 # ── Step 1: generate synthetic sessions ──────────────────────────────────────
 _type "python3 gen_samples.py $DEMO_SESSIONS/"
 python3 gen_samples.py "$DEMO_SESSIONS/" 2>&1 | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'  Generated {d[\"total_sessions\"]} synthetic sessions')"
-_pause 2.5
+_pause 4
 
 echo ""
 
@@ -32,14 +32,41 @@ python3 -m dejavu analyze \
   --sessions "$DEMO_SESSIONS/" \
   --rules-file "$DEMO_RULES" \
   --no-llm 2>&1
-_pause 4
+_pause 6
+
+echo ""
+
+# ── Step 2b: open HTML report in Safari and scroll through it ─────────────────
+_type "open /tmp/report.html  # interactive breakdown in the browser"
+open -a Safari /tmp/report.html
+_pause 2  # wait for page to load
+
+# Maximize Safari window (no permission prompt)
+osascript -e 'tell application "Safari" to set zoomed of front window to true'
+_pause 1
+
+# Scroll slowly through the report
+osascript -e 'tell application "Safari" to do JavaScript "window.scrollBy({top: 400, behavior: \"smooth\"})" in front document'
+_pause 3
+osascript -e 'tell application "Safari" to do JavaScript "window.scrollBy({top: 400, behavior: \"smooth\"})" in front document'
+_pause 3
+osascript -e 'tell application "Safari" to do JavaScript "window.scrollBy({top: 400, behavior: \"smooth\"})" in front document'
+_pause 3
+osascript -e 'tell application "Safari" to do JavaScript "window.scrollBy({top: 400, behavior: \"smooth\"})" in front document'
+_pause 2
+
+# Unzoom Safari then bring Terminal back
+osascript -e 'tell application "Safari" to set zoomed of front window to false'
+_pause 1
+osascript -e 'tell application "Terminal" to activate'
+_pause 2
 
 echo ""
 
 # ── Step 3: preview r001 ─────────────────────────────────────────────────────
 _type "python3 -m dejavu preview r001 --rules-file $DEMO_RULES"
 python3 -m dejavu preview r001 --rules-file "$DEMO_RULES" 2>&1
-_pause 3
+_pause 5
 
 echo ""
 
@@ -48,7 +75,7 @@ _type "python3 -m dejavu emit r001 --rules-file $DEMO_RULES --out-dir /tmp/dejav
 python3 -m dejavu emit r001 \
   --rules-file "$DEMO_RULES" \
   --out-dir /tmp/dejavu-demo-hooks 2>&1
-_pause 3
+_pause 4
 
 echo ""
 
@@ -57,12 +84,12 @@ _type "cat /tmp/dejavu-demo-hooks/hook-r001.py  # fires before every Edit call"
 echo ""
 head -20 /tmp/dejavu-demo-hooks/hook-r001.py
 echo "..."
-_pause 3
+_pause 5
 
 echo ""
 echo -e "  \033[1;32m✓\033[0m  Rule active. Run \033[1mpython3 -m dejavu measure r001\033[0m after your next sessions."
 echo ""
-_pause 2
+_pause 4
 
 # Countdown so the recording ends cleanly
 echo -e "  \033[2m-- recording ends in --\033[0m"

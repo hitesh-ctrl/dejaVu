@@ -2,7 +2,7 @@
 
 > Find the mistakes your AI agent keeps repeating. Write the rule that stops them. Measure whether it worked.
 
-![dejavu demo](dejavu-demo.gif)
+<video src="dejavu-demo-final-50s.mp4" autoplay loop muted width="100%"></video>
 
 ---
 
@@ -320,7 +320,7 @@ samples/           synthetic test sessions (safe to commit)
 tests/             pytest suite asserting exact ground-truth numbers
 .dejavu/           emitted hooks for real rules (gitignored: real-rules.json)
 demo.sh            end-to-end demo script
-record_demo.sh     recording-friendly demo (used to generate demo GIF)
+record_demo.sh     recording-friendly demo (used to generate demo video)
 FORMAT.md          documented session log format
 ```
 

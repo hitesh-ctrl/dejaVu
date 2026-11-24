@@ -17,6 +17,12 @@ fi
 mkdir -p "$TMP"
 trap 'rm -rf "$TMP"' EXIT
 
+RAW_SECS=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$INPUT" 2>/dev/null | cut -d. -f1)
+if [[ -z "$RAW_SECS" || "$RAW_SECS" -lt $((DURATION + 2)) ]]; then
+  echo "ERROR: raw recording is ${RAW_SECS}s but need at least $((DURATION + 2))s. Re-record."
+  exit 1
+fi
+
 # Total duration and per-segment durations (must sum to DURATION).
 # Segments map 1-to-1 to generate_panels.py VOICEOVER entries.
 #   0 intro         4s

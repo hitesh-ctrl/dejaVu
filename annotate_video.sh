@@ -17,6 +17,8 @@ fi
 mkdir -p "$TMP"
 trap 'rm -rf "$TMP"' EXIT
 
+DURATION=56
+
 RAW_SECS=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$INPUT" 2>/dev/null | cut -d. -f1)
 if [[ -z "$RAW_SECS" || "$RAW_SECS" -lt $((DURATION + 2)) ]]; then
   echo "ERROR: raw recording is ${RAW_SECS}s but need at least $((DURATION + 2))s. Re-record."
@@ -26,19 +28,18 @@ fi
 # Total duration and per-segment durations (must sum to DURATION).
 # Segments map 1-to-1 to generate_panels.py VOICEOVER entries.
 #   0 intro         4s
-#   1 gen_samples   5s
-#   2 analyze       5s
+#   1 gen_samples   4s
+#   2 analyze       2s
 #   3 results       5s
 #   4 open browser  3s
 #   5 report top    5s
 #   6 scroll        13s
-#   7 preview       5s
-#   8 emit          5s
+#   7 preview       4s
+#   8 emit          4s
 #   9 hook code     4s
-#  10 measure       6s
+#  10 measure       5s
 #  11 tagline       3s
-DURATION=63
-declare -a DURS=(4 5 5 5 3 5 13 5 5 4 6 3)
+declare -a DURS=(4 4 2 5 3 5 13 4 4 4 5 3)
 
 # ── 1. Generate subtitle overlay PNGs ────────────────────────────────────────
 echo "1/3  Generating subtitle overlays..."
@@ -71,11 +72,7 @@ echo "3/3  Compositing..."
 ffmpeg -y \
   -i "$INPUT" \
   -i "$TMP/overlay.mkv" \
-  -filter_complex "
-    [0:v]trim=start=2:duration=${DURATION},setpts=PTS-STARTPTS,
-         crop=2560:1614:0:50[main];
-    [main][1:v]overlay=x=0:y=0[out]
-  " \
+  -filter_complex "[0:v]trim=start=2:duration=${DURATION},setpts=PTS-STARTPTS,crop=2560:1614:0:50[main];[main][1:v]overlay=x=0:y=0[out]" \
   -map "[out]" \
   -c:v libx264 -crf 8 -preset slow -pix_fmt yuv420p -movflags faststart \
   "$OUTPUT"

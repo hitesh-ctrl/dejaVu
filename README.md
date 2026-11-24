@@ -11,7 +11,7 @@
 
 <br/>
 
-<video src="dejavu-demo-final-50s.mp4" autoplay loop muted playsinline width="100%"></video>
+![dejavu demo](dejavu-demo.gif)
 
 </div>
 

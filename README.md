@@ -36,23 +36,23 @@ Everything runs locally. No session data leaves your machine.
 
 ## Real results
 
-Analyzed 48 real sessions across 21 projects *(separate from the 47-session synthetic demo below)*:
+Analyzed **56 real sessions** from daily Claude Code use:
 
 ```
-Top cluster:   Edit:file_not_read      24 sessions  (50%)
-Second:        user_correction         13 sessions  (27%)
-Third:         Bash:not_found          10 sessions  (21%)
+Top cluster:   Bash:error:exit_code_1    29 sessions  (52%)
+Second:        user_correction           13 sessions  (23%)
+Third:         Bash:not_found            12 sessions  (21%)
+Fourth:        Bash:permission_denied    10 sessions  (18%)
 ```
 
-After emitting a hook for `Edit:file_not_read`: **75% reduction (95% CI: 44–89%)** vs a control mistake that had no rule written for it:
+Hook for `Bash:error:exit_code_1` activated Nov 25 2026 — before/after data accumulates with use.
+
+**Synthetic demo (47 sessions)** — control group shows the rule is the cause, not a time trend:
 
 | | Before (25 sessions) | After (22 sessions) | Change |
 |---|---|---|---|
 | **Target** `Edit:file_not_read` *(rule written)* | 9/25 = 36% | 2/22 = 9% | **−75%** |
-| **Control** `Bash:enoent:package.json` *(no rule)* | 4/25 = 16% | 4/22 = 18% | −2% (flat) |
-
-The control mistake stays flat over the same period — supporting the rule as the cause of the drop, not a time trend.  
-*(47-session synthetic demo dataset; see Real results above for live-session numbers)*
+| **Control** `Bash:enoent:package.json` *(no rule)* | 4/25 = 16% | 4/22 = 18% | flat |
 
 ---
 

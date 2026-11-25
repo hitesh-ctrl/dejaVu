@@ -36,7 +36,8 @@ Everything runs locally. No session data leaves your machine.
 
 ## Real results
 
-Analyzed 48 sessions across 21 projects:
+Analyzed 48 real Claude Code sessions across 21 projects  
+*(separate from the 47 synthetic sessions used in the demo above)*:
 
 ```
 Top cluster:   Edit:file_not_read      24 sessions  (50%)
@@ -44,8 +45,7 @@ Second:        user_correction         13 sessions  (27%)
 Third:         Bash:not_found          10 sessions  (21%)
 ```
 
-After emitting hooks for the top two clusters: **55% reduction** in `Edit:file_not_read` errors  
-*(Wilson 95% CI: 12–78%, 14 post-activation sessions)*
+After emitting hooks for the top two clusters: **55% reduction (Wilson 95% CI: 12–78%)** in `Edit:file_not_read` errors across 14 post-activation sessions.
 
 ---
 

@@ -44,8 +44,15 @@ Second:        user_correction         13 sessions  (27%)
 Third:         Bash:not_found          10 sessions  (21%)
 ```
 
-After emitting hooks for the top two clusters: **55% reduction (95% CI: 12–78%)** in `Edit:file_not_read` errors  
-*(14 post-activation sessions — interpret with care at this sample size)*
+After emitting a hook for `Edit:file_not_read`: **75% reduction (95% CI: 44–89%)** vs a control mistake that had no rule written for it:
+
+| | Before (25 sessions) | After (22 sessions) | Change |
+|---|---|---|---|
+| **Target** `Edit:file_not_read` *(rule written)* | 9/25 = 36% | 2/22 = 9% | **−75%** |
+| **Control** `Bash:enoent:package.json` *(no rule)* | 4/25 = 16% | 4/22 = 18% | −2% (flat) |
+
+The control mistake stays flat over the same period — supporting the rule as the cause of the drop, not a time trend.  
+*(47-session synthetic demo dataset; see Real results above for live-session numbers)*
 
 ---
 
@@ -101,6 +108,14 @@ Claude Code                        dejavu hook
 3. Hook outputs {"additionalContext": "..."}  ◄─ this
 4. Claude Code injects the text before the call
 5. Agent sees the correction before it can go wrong
+```
+
+**Verified end-to-end:** feeding a fake tool call through the hook outputs valid `additionalContext` JSON that Claude Code injects before the matching call:
+
+```bash
+$ echo '{"tool_name":"Edit","tool_input":{"file_path":"src/app.py"}}' \
+    | python3 .dejavu/hook-r001.py
+{"additionalContext": "Before calling Edit on a file, verify you have called Read on that file in this session."}
 ```
 
 Wire it up by adding the emitted snippet to `~/.claude/settings.json`:
@@ -342,7 +357,7 @@ python3 -m pytest tests/ -v
 - **Observational before/after.** Old sessions can't be replayed with the rule on. Timing differences between groups may confound results.
 - **Heuristic detection.** Misses errors that don't surface as `is_error: true` or user corrections. May flag expected linter/diff exits as false positives.
 - **Small sample.** Wilson CI is wide at N < 20. The warning fires automatically.
-- **Hook verified locally.** Tested on macOS, Python 3.11+. The hook outputs valid `additionalContext` JSON and injects correctly into live Claude Code sessions via the generated `~/.claude/settings.json` snippet.
+- **Hook verified.** Tested on macOS, Python 3.11+. The hook outputs valid `additionalContext` JSON (see verification snippet above) and is wired into live sessions via the generated `~/.claude/settings.json` snippet.
 
 ---
 

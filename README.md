@@ -36,8 +36,7 @@ Everything runs locally. No session data leaves your machine.
 
 ## Real results
 
-Analyzed 48 real Claude Code sessions across 21 projects  
-*(separate from the 47 synthetic sessions used in the demo above)*:
+Analyzed 48 real sessions across 21 projects *(separate from the 47-session synthetic demo below)*:
 
 ```
 Top cluster:   Edit:file_not_read      24 sessions  (50%)
@@ -45,7 +44,8 @@ Second:        user_correction         13 sessions  (27%)
 Third:         Bash:not_found          10 sessions  (21%)
 ```
 
-After emitting hooks for the top two clusters: **55% reduction (Wilson 95% CI: 12–78%)** in `Edit:file_not_read` errors across 14 post-activation sessions.
+After emitting hooks for the top two clusters: **55% reduction (95% CI: 12–78%)** in `Edit:file_not_read` errors  
+*(14 post-activation sessions — interpret with care at this sample size)*
 
 ---
 
@@ -229,6 +229,48 @@ python3 -m dejavu report [--out FILE]
 
 ---
 
+### `--output-format json`
+
+`analyze`, `preview`, and `measure` all accept `--output-format json` for machine-readable output:
+
+```bash
+python3 -m dejavu analyze --sessions samples/ --no-llm --output-format json | jq '.clusters[0]'
+python3 -m dejavu measure r001 --output-format json
+```
+
+---
+
+## False positives
+
+Some tool errors are expected and should not form rules. Common examples:
+
+| Signature | Why it's a false positive |
+|-----------|--------------------------|
+| `Bash:error:exit_code_1` | `git diff` exits 1 when changes exist; linters exit non-zero on warnings |
+| `Bash:enoent:package.json` | Running tests from a subdirectory that lacks its own `package.json` |
+| `Bash:not_found` | `which` or `command -v` probing for optional tools |
+
+**Allowlist them** in `.dejavu/config.json` at your project root:
+
+```json
+{
+  "ignore": [
+    {"signature": "Bash:error:exit_code_1", "reason": "expected git diff / linter exits"},
+    {"signature": "Bash:enoent:package.json", "reason": "tests run from subdirectory"}
+  ]
+}
+```
+
+Or inline with `--ignore-sigs`:
+
+```bash
+python3 -m dejavu analyze --ignore-sigs "Bash:error:exit_code_1,Bash:not_found"
+```
+
+The allowlist applies to `analyze`, `preview`, and `measure`. Exact signature strings only — use `analyze --detail` to see exact signatures before adding them.
+
+---
+
 ## Privacy
 
 Before anything touches the LLM or report, `redact.py` strips home directory paths, email addresses, and API key patterns. Run with `--no-llm` to make zero network calls.
@@ -300,7 +342,7 @@ python3 -m pytest tests/ -v
 - **Observational before/after.** Old sessions can't be replayed with the rule on. Timing differences between groups may confound results.
 - **Heuristic detection.** Misses errors that don't surface as `is_error: true` or user corrections. May flag expected linter/diff exits as false positives.
 - **Small sample.** Wilson CI is wide at N < 20. The warning fires automatically.
-- **Hook verified locally.** Tested on macOS, Python 3.11+. The hook outputs valid `additionalContext` JSON; end-to-end injection in a live session works with the generated settings snippet.
+- **Hook verified locally.** Tested on macOS, Python 3.11+. The hook outputs valid `additionalContext` JSON and injects correctly into live Claude Code sessions via the generated `~/.claude/settings.json` snippet.
 
 ---
 

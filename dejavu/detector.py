@@ -87,12 +87,19 @@ MIN_CLUSTER_SESSIONS = 2
 def build_sig_map(
     sessions: list[Session],
     min_sessions: int = MIN_CLUSTER_SESSIONS,
+    ignore_signatures: set[str] | None = None,
 ) -> dict[str, set[str]]:
-    """Return signature -> set of session_ids, only for clusters in >= min_sessions."""
+    """Return signature -> set of session_ids, only for clusters in >= min_sessions.
+
+    ignore_signatures: exact signature strings to skip (false-positive allowlist).
+    """
+    ignore = ignore_signatures or set()
     result: dict[str, set[str]] = {}
     for s in sessions:
         seen_sigs: set[str] = set()
         for signal in detect_mistakes(s):
+            if signal.signature in ignore:
+                continue
             if signal.signature not in seen_sigs:
                 result.setdefault(signal.signature, set()).add(s.session_id)
                 seen_sigs.add(signal.signature)

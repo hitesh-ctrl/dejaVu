@@ -18,6 +18,35 @@ from .adapter import load_generic_sessions, is_generic_dir
 from .drill import drill
 
 
+def _load_ignore(args: argparse.Namespace) -> set[str]:
+    """Return the set of signatures to ignore (from --ignore-sigs and .dejavu/config.json)."""
+    ignore: set[str] = set()
+
+    # From --ignore-sigs flag
+    if getattr(args, "ignore_sigs", None):
+        for s in args.ignore_sigs.split(","):
+            s = s.strip()
+            if s:
+                ignore.add(s)
+
+    # From .dejavu/config.json in cwd or sessions dir
+    for base in [Path.cwd(), Path(args.sessions or ".")]:
+        cfg = base / ".dejavu" / "config.json"
+        if cfg.exists():
+            try:
+                data = json.loads(cfg.read_text())
+                for entry in data.get("ignore", []):
+                    if isinstance(entry, str):
+                        ignore.add(entry)
+                    elif isinstance(entry, dict) and "signature" in entry:
+                        ignore.add(entry["signature"])
+            except Exception:
+                pass
+            break
+
+    return ignore
+
+
 def _load_store(rules_file: str) -> RuleStore:
     return RuleStore(path=rules_file)
 
@@ -46,9 +75,9 @@ def cmd_analyze(args: argparse.Namespace) -> None:
         return
 
     source = args.sessions or str(Path.home() / ".claude" / "projects")
-    print(f"Loaded {n} sessions from {source}\n")
+    ignore = _load_ignore(args)
 
-    sig_map = build_sig_map(sessions)
+    sig_map = build_sig_map(sessions, ignore_signatures=ignore)
     if not sig_map:
         print("No mistake signals detected.")
         return
@@ -56,17 +85,17 @@ def cmd_analyze(args: argparse.Namespace) -> None:
     clusters = sorted(sig_map.items(), key=lambda x: -len(x[1]))
     top = clusters[: args.top]
 
-    # Gather example errors per signature
     sig_errors: dict[str, list[str]] = {}
     for s in sessions:
         for signal in detect_mistakes(s):
-            sig_errors.setdefault(signal.signature, []).append(signal.content_snippet)
+            if signal.signature not in ignore:
+                sig_errors.setdefault(signal.signature, []).append(signal.content_snippet)
 
     store = RuleStore(path=args.rules_file)
     store.sessions_dir = source
     store.session_count = n
 
-    print("Top mistake clusters:\n")
+    rules_out = []
     for i, (sig, session_ids) in enumerate(top):
         rule_id = f"r{i + 1:03d}"
         rule_text, scope = draft_rule(sig, sig_errors.get(sig, []), use_llm=not args.no_llm)
@@ -83,29 +112,41 @@ def cmd_analyze(args: argparse.Namespace) -> None:
 
         p = preview_rule(rule, sessions, sig_map)
         rule.preview_stats = p
-
-        scope_str = ", ".join(
-            f"{k}={v}" for k, v in scope.items() if v is not None
-        )
-        print(f"  {rule_id}  {sig}")
-        print(f"       sessions: {len(session_ids)}")
-        print(f"       scope: {scope_str}")
-        fires = p["fires_in_sessions"]
-        mistakes = p["mistake_in_sessions"]
-        false_hits = p["false_hits"]
-        print(f"       fires in {fires} sessions, mistake in {mistakes} ({false_hits} false hits)")
-        print(f"       rule: {rule_text}")
-        if getattr(args, "detail", False):
-            print()
-            print(drill(sig, sessions, session_ids))
-        print()
-
         store.add(rule)
+        rules_out.append({"rule_id": rule_id, "signature": sig, "sessions": len(session_ids),
+                          "scope": scope, "rule_text": rule_text, "preview": p})
 
     store.save()
-    print(f"Rules saved to {args.rules_file}")
-
     report_path = generate_report(sessions, top, store.all(), args.rules_file)
+
+    if getattr(args, "output_format", "text") == "json":
+        print(json.dumps({
+            "total_sessions": n,
+            "source": source,
+            "rules_file": args.rules_file,
+            "report": report_path,
+            "clusters": rules_out,
+        }, indent=2))
+        return
+
+    print(f"Loaded {n} sessions from {source}\n")
+    print("Top mistake clusters:\n")
+    for entry in rules_out:
+        p = entry["preview"]
+        scope_str = ", ".join(f"{k}={v}" for k, v in entry["scope"].items() if v is not None)
+        print(f"  {entry['rule_id']}  {entry['signature']}")
+        print(f"       sessions: {entry['sessions']}")
+        print(f"       scope: {scope_str}")
+        print(f"       fires in {p['fires_in_sessions']} sessions, "
+              f"mistake in {p['mistake_in_sessions']} ({p['false_hits']} false hits)")
+        print(f"       rule: {entry['rule_text']}")
+        if getattr(args, "detail", False):
+            print()
+            print(drill(entry["signature"], sessions,
+                        sig_map.get(entry["signature"], set())))
+        print()
+
+    print(f"Rules saved to {args.rules_file}")
     print(f"Report saved to {report_path}")
     print(f"\nNext: python -m dejavu preview r001")
 
@@ -123,9 +164,23 @@ def cmd_preview(args: argparse.Namespace) -> None:
             sys.exit(1)
 
     sessions = load_sessions_from(store.sessions_dir)
-    sig_map = build_sig_map(sessions)
+    ignore = _load_ignore(args)
+    sig_map = build_sig_map(sessions, ignore_signatures=ignore)
 
     p = preview_rule(rule, sessions, sig_map, scope_override=scope_override)
+
+    if getattr(args, "output_format", "text") == "json":
+        fires = p["fires_in_sessions"]
+        mistakes = p["mistake_in_sessions"]
+        print(json.dumps({
+            "rule_id": rule.rule_id,
+            "signature": rule.signature,
+            "rule_text": rule.rule_text,
+            **p,
+            "precision": round(mistakes / fires, 4) if fires else None,
+        }, indent=2))
+        return
+
     scope_used = p["scope"]
     scope_str = ", ".join(f"{k}={v}" for k, v in scope_used.items() if v is not None)
 
@@ -179,13 +234,24 @@ def cmd_measure(args: argparse.Namespace) -> None:
 
     result = measure_rule(rule, sessions)
 
-    # Cache result into the rule so the report can include it
     rule.measure_result = result
     store.save()
 
     if "error" in result:
-        print(f"Error: {result['error']}")
+        if getattr(args, "output_format", "text") == "json":
+            print(json.dumps({"error": result["error"]}))
+        else:
+            print(f"Error: {result['error']}")
         sys.exit(1)
+
+    if getattr(args, "output_format", "text") == "json":
+        print(json.dumps({
+            "rule_id": rule.rule_id,
+            "signature": rule.signature,
+            "activated_at": rule.activated_at,
+            **result,
+        }, indent=2))
+        return
 
     print(f"Rule {rule.rule_id}: {rule.signature}")
     print(f"Activated: {rule.activated_at}\n")
@@ -237,6 +303,12 @@ def main() -> None:
     )
     sub = parser.add_subparsers(dest="command", metavar="COMMAND")
 
+    def _add_common(p: argparse.ArgumentParser) -> None:
+        p.add_argument("--output-format", choices=["text", "json"], default="text",
+                       dest="output_format", help="Output format (default: text)")
+        p.add_argument("--ignore-sigs", default=None, metavar="SIG1,SIG2",
+                       help="Comma-separated signatures to ignore (false-positive allowlist)")
+
     # analyze
     p_a = sub.add_parser("analyze", help="Detect clusters and draft rules")
     p_a.add_argument("--sessions", default=None, metavar="DIR",
@@ -250,13 +322,16 @@ def main() -> None:
                      metavar="FMT", help="Input format: auto (default), claude, generic")
     p_a.add_argument("--detail", action="store_true",
                      help="Show per-cluster breakdown of commands and error samples")
+    _add_common(p_a)
 
     # preview
     p_p = sub.add_parser("preview", help="Show scope firing stats for a rule")
     p_p.add_argument("rule_id")
     p_p.add_argument("--rules-file", default="rules.json", metavar="FILE")
+    p_p.add_argument("--sessions", default=None, metavar="DIR")
     p_p.add_argument("--scope", default=None, metavar="JSON",
                      help="Override scope, e.g. '{\"tool\":\"Edit\",\"command_pattern\":\"src/\"}'")
+    _add_common(p_p)
 
     # emit
     p_e = sub.add_parser("emit", help="Generate hook script and CLAUDE.md snippet")
@@ -269,6 +344,7 @@ def main() -> None:
     p_m.add_argument("rule_id")
     p_m.add_argument("--rules-file", default="rules.json", metavar="FILE")
     p_m.add_argument("--sessions", default=None, metavar="DIR")
+    _add_common(p_m)
 
     # conflicts
     p_c = sub.add_parser("conflicts", help="Check rules for scope overlap or contradictions")
